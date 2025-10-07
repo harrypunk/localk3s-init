@@ -3,7 +3,9 @@
   hosts: k3s_servers
   become: yes
   vars:
-    k3s_tar_file: "/somefolder/k3s.tar.zst"
+    local_tmp_server: "http://tmp.file.lan:4000"
+    k3s_binary_url: "{{ local_tmp_server }}/k3s"
+    k3s_airgap_images_url: "{{ local_tmp_server }}/k3s-airgap-images.tar.zst"
     k3s_binary_local: "/tmp/k3s"
     k3s_install_dir: "/usr/local/bin"
     k3s_data_dir: "/var/lib/rancher/k3s"
@@ -11,7 +13,7 @@
   tasks:
     - name: Download K3s binary (if not already present)
       get_url:
-        url: https://github.com/k3s-io/k3s/releases/latest/download/k3s
+        url: "{{ k3s_binary_url }}"
         dest: "{{ k3s_binary_local }}"
         mode: '0755'
       delegate_to: localhost
@@ -33,9 +35,10 @@
         - /etc/rancher/k3s
     
     - name: Copy air-gap images tar to target server
-      copy:
-        src: "{{ k3s_tar_file }}"
-        dest: "{{ k3s_data_dir }}/agent/images/"
+      get_url:
+        url: "{{ k3s_airgap_images_url }}"
+        dest: "{{ k3s_data_dir }}/agent/images/k3s-airgap-images.tar.zst"
+        mode: '0644'
     
     - name: Check if node token file exists (to determine if this is the first server)
       stat:
