@@ -1,0 +1,131 @@
+---
+- name: Install K3s on air-gapped environment
+  hosts: k3s_servers
+  become: yes
+  vars:
+    k3s_tar_file: "/somefolder/k3s.tar.zst"
+    k3s_binary_local: "/tmp/k3s"
+    k3s_install_dir: "/usr/local/bin"
+    k3s_data_dir: "/var/lib/rancher/k3s"
+  
+  tasks:
+    - name: Download K3s binary (if not already present)
+      get_url:
+        url: https://github.com/k3s-io/k3s/releases/latest/download/k3s
+        dest: "{{ k3s_binary_local }}"
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+    
+    - name: Copy K3s binary to target server
+      copy:
+        src: "{{ k3s_binary_local }}"
+        dest: "{{ k3s_install_dir }}/k3s"
+        mode: '0755'
+    
+    - name: Create K3s directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ k3s_data_dir }}/agent/images"
+        - /etc/rancher/k3s
+    
+    - name: Copy air-gap images tar to target server
+      copy:
+        src: "{{ k3s_tar_file }}"
+        dest: "{{ k3s_data_dir }}/agent/images/"
+    
+    - name: Check if node token file exists (to determine if this is the first server)
+      stat:
+        path: /var/lib/rancher/k3s/server/node-token
+      register: node_token_file
+
+    - name: Set fact for first server
+      set_fact:
+        is_first_server: "{{ inventory_hostname == groups['k3s_servers'][0] }}"
+
+    - name: Copy kube-vip manifest to first server (if this is the first server)
+      template:
+        src: kube-vip.yaml.j2
+        dest: "{{ k3s_data_dir }}/server/manifests/kube-vip.yaml"
+      vars:
+        kube_vip_address: "192.168.1.100" # This should ideally be configurable via group_vars or host_vars
+        # kube_vip_interface: "eth0" # Optional, defaults to eth0 in template
+        # kube_vip_image: "ghcr.io/kube-vip/kube-vip:v0.8.7" # Optional, defaults in template
+      when: is_first_server
+
+    - name: Create K3s service file
+      template:
+        src: k3s.service.j2
+        dest: /etc/systemd/system/k3s.service
+      notify: Restart K3s
+    
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+    
+    - name: Install first K3s server (cluster-init)
+      systemd:
+        name: k3s
+        enabled: yes
+        state: started
+        # Assuming the service file handles cluster-init based on is_first_server fact or similar logic
+        # You might need to adjust the service template or add environment variables here
+      when: is_first_server
+      notify: Restart K3s
+
+    - name: Wait for first server to generate token
+      wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        timeout: 300
+      when: is_first_server
+
+    - name: Fetch node token from first server
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: node_token_content
+      when: is_first_server
+      delegate_to: "{{ groups['k3s_servers'][0] }}" # Delegate to the first server itself to read the file
+      run_once: true
+
+    - name: Set node token as fact (for subsequent servers)
+      set_fact:
+        k3s_node_token: "{{ node_token_content.content | b64decode | trim }}"
+      when: not is_first_server
+      delegate_to: localhost # Set the fact locally so it can be used by subsequent tasks on other servers
+      run_once: true
+
+    - name: Install subsequent K3s servers (join first server)
+      systemd:
+        name: k3s
+        enabled: yes
+        state: started
+        # The service file needs to be configured to use K3S_URL and K3S_TOKEN
+        # This usually involves setting EnvironmentFile=-/etc/rancher/k3s/k3s-agent.env or similar in the service file
+      when: not is_first_server
+      notify: Restart K3s
+    
+    - name: Wait for K3s to be ready
+      wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        timeout: 300
+    
+    - name: Get Kubernetes config
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: ./kubeconfig
+        flat: yes
+    
+    - name: Get Kubernetes config
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: ./kubeconfig
+        flat: yes
+
+  handlers:
+    - name: Restart K3s
+      systemd:
+        name: k3s
+        state: restarted
