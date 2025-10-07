@@ -1,29 +1,44 @@
 ---
-- name: Install K3s on air-gapped environment
-  hosts: k3s_servers
-  become: yes
+- name: Download K3s and images on localhost
+  hosts: localhost
+  connection: local
+  gather_facts: no
   vars:
     local_tmp_server: "http://tmp.file.lan:4000"
     k3s_binary_url: "{{ local_tmp_server }}/k3s"
     k3s_airgap_images_url: "{{ local_tmp_server }}/k3s-airgap-images.tar.zst"
-    k3s_binary_local: "/tmp/k3s"
-    k3s_install_dir: "/usr/local/bin"
-    k3s_data_dir: "/var/lib/rancher/k3s"
+    k3s_binary_local: "/tmp/k3s/k3s"
+    k3s_airgap_images_local: "/tmp/k3s/k3s-airgap-images.tar.zst"
   
   tasks:
-    - name: Download K3s binary (if not already present)
+    - name: Download K3s binary
       get_url:
         url: "{{ k3s_binary_url }}"
         dest: "{{ k3s_binary_local }}"
         mode: '0755'
-      delegate_to: localhost
-      run_once: true
     
+    - name: Download air-gap images tar
+      get_url:
+        url: "{{ k3s_airgap_images_url }}"
+        dest: "{{ k3s_airgap_images_local }}"
+        mode: '0644'
+
+- name: Install K3s on air-gapped environment
+  hosts: k3s_servers
+  become: yes
+  vars:
+    k3s_binary_local: "/tmp/k3s/k3s"
+    k3s_airgap_images_local: "/tmp/k3s/k3s-airgap-images.tar.zst"
+    k3s_install_dir: "/usr/local/bin"
+    k3s_data_dir: "/var/lib/rancher/k3s"
+  
+  tasks:
     - name: Copy K3s binary to target server
       copy:
         src: "{{ k3s_binary_local }}"
         dest: "{{ k3s_install_dir }}/k3s"
         mode: '0755'
+        remote_src: false
     
     - name: Create K3s directories
       file:
@@ -35,10 +50,11 @@
         - /etc/rancher/k3s
     
     - name: Copy air-gap images tar to target server
-      get_url:
-        url: "{{ k3s_airgap_images_url }}"
+      copy:
+        src: "{{ k3s_airgap_images_local }}"
         dest: "{{ k3s_data_dir }}/agent/images/k3s-airgap-images.tar.zst"
         mode: '0644'
+        remote_src: false
     
     - name: Check if node token file exists (to determine if this is the first server)
       stat:
@@ -114,12 +130,6 @@
       wait_for:
         path: /etc/rancher/k3s/k3s.yaml
         timeout: 300
-    
-    - name: Get Kubernetes config
-      fetch:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: ./kubeconfig
-        flat: yes
     
     - name: Get Kubernetes config
       fetch:
