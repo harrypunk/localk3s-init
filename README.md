@@ -12,11 +12,9 @@ This repository contains Ansible playbooks and configuration files for deploying
 
 ## Files Included
 
-- `inventory.ini` - Ansible inventory file defining your K3s servers and agents
+- `inventory.ini` - Ansible inventory file defining your K3s servers
 - `k3s-install.yml` - Main playbook for installing K3s HA servers
-- `k3s-agent.yml` - Playbook for joining agent nodes to the cluster
 - `templates/k3s.service.j2` - Systemd service template for K3s server
-- `templates/k3s-agent.service.j2` - Systemd service template for K3s agents
 - `templates/kube-vip.yaml.j2` - Template for the `kube-vip` manifest
 
 ## Prerequisites
@@ -36,10 +34,6 @@ Update the `inventory.ini` file to list your HA servers:
 [k3s_servers]
 linux1.lan
 linux2.lan
-
-[k3s_agents]
-# Add dedicated agent nodes here if needed
-# linux3.lan
 ```
 
 ### 2. Run the K3s HA Installation Playbook
@@ -70,16 +64,6 @@ kubectl config set-cluster default --server=https://k3s.lan:6443
 # Verify the cluster nodes
 kubectl get nodes
 ```
-
-### 4. Adding Agent Nodes
-
-To add dedicated agent nodes:
-1. List them under `[k3s_agents]` in `inventory.ini`.
-2. Ensure they can resolve `k3s.lan` to the VIP (192.168.1.100).
-3. Run the agent playbook:
-   ```bash
-   ansible-playbook -i inventory.ini k3s-agent.yml
-   ```
 
 ## Customization
 
