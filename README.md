@@ -21,9 +21,10 @@ This repository contains Ansible playbooks and configuration files for deploying
 
 1. Ansible installed on your control machine
 2. SSH access to target nodes (`linux1.lan`, `linux2.lan`)
-3. K3s binary and air-gap images tar file available via HTTP URLs
-4. `kube-vip` Docker image (`ghcr.io/kube-vip/kube-vip`) available in your air-gapped environment (imported into nodes' local Docker registry or containerd)
-5. Local DNS resolution configured for `linux1.lan`, `linux2.lan`, and `k3s.lan` (pointing to the VIP, e.g., 192.168.1.100)
+3. User account on target nodes with sudo privileges
+4. K3s binary and air-gap images tar file available via HTTP URLs
+5. `kube-vip` Docker image (`ghcr.io/kube-vip/kube-vip`) available in your air-gapped environment (imported into nodes' local Docker registry or containerd)
+6. Local DNS resolution configured for `linux1.lan`, `linux2.lan`, and `k3s.lan` (pointing to the VIP, e.g., 192.168.1.100)
 
 ## Usage
 
@@ -36,15 +37,42 @@ linux1.lan
 linux2.lan
 ```
 
-### 2. Configure Download URLs
+### 2. Authentication
 
-Before running the playbook, you need to set the URLs for the K3s binary and air-gap images:
-- `k3s_binary_url`: URL to download the K3s binary (defaults to latest GitHub release)
-- `k3s_airgap_images_url`: URL to download the K3s air-gap images tar file
+The playbook requires sudo access on target nodes. You have several options for authentication:
 
-You can override these variables during playbook execution:
+#### SSH Key Authentication (Recommended)
+Set up SSH key authentication between your control machine and target nodes, then run:
 ```bash
-ansible-playbook -i inventory.ini k3s-install.yml -e "k3s_binary_url=http://tmp.file.lan/k3s k3s_airgap_images_url=http://tmp.file.lan/k3s-airgap-images.tar.zst"
+ansible-playbook -i inventory.ini k3s-install.yml --ask-become-pass
+```
+
+#### Password Authentication
+If using password authentication, you can:
+1. Prompt for passwords each time:
+   ```bash
+   ansible-playbook -i inventory.ini k3s-install.yml --ask-pass --ask-become-pass
+   ```
+
+2. Use Ansible Vault for secure credential storage (recommended for passwords):
+   ```bash
+   # Create vault
+   ansible-vault create group_vars/k3s_servers/vault
+   
+   # Add credentials to vault file:
+   # ansible_user: your_username
+   # ansible_password: your_password
+   # ansible_become_password: your_sudo_password
+   
+   # Run playbook
+   ansible-playbook -i inventory.ini k3s-install.yml --ask-vault-pass
+   ```
+
+Update your `inventory.ini` file with user information if not using the current user:
+```ini
+[k3s_servers]
+linux1.lan ansible_user=your_username
+linux2.lan ansible_user=your_username
 ```
 
 Execute the main playbook to set up the HA cluster:
@@ -57,9 +85,22 @@ This will:
 - Deploy `kube-vip` as a static pod on the control plane nodes.
 - Configure the K3s API server certificate to be valid for `k3s.lan`.
 
-### 3. Accessing the Cluster
+### 3. Run the K3s HA Installation Playbook
 
-After installation, the kubeconfig file will be fetched to `./kubeconfig`. The server address in this file might need to be updated to `https://k3s.lan:6443`.
+Execute the main playbook to set up the HA cluster with default URLs:
+```bash
+ansible-playbook -i inventory.ini k3s-install.yml --ask-become-pass
+```
+
+Or with custom URLs:
+```bash
+ansible-playbook -i inventory.ini k3s-install.yml --ask-become-pass -e "k3s_binary_url=http://tmp.file.lan:4000/k3s k3s_airgap_images_url=http://tmp.file.lan:4000/k3s-airgap-images.tar.zst"
+```
+
+Or with custom base server:
+```bash
+ansible-playbook -i inventory.ini k3s-install.yml --ask-become-pass -e "local_tmp_server=http://new-server:8000"
+```
 
 ```bash
 # Export the kubeconfig
