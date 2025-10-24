@@ -1,0 +1,56 @@
+---
+- name: Prepare K3s on air-gapped environment
+  hosts: k3s_node
+  become: true
+  any_errors_fatal: true
+  vars:
+    k3s_src_dir: "/tmp/k3s"
+    k3s_binary_local: "{{ k3s_src_dir }}/k3s"
+    k3s_airgap_tar_name: "k3s-airgap-images-amd64.tar"
+    k3s_airgap_zip: "{{ k3s_airgap_tar_name }}.gz"
+    k3s_install_dir: "/usr/local/bin"
+    k3s_etc_dir: "/etc/rancher/k3s"
+
+  tasks:
+    - name: Copy K3s binary to {{ inventory_hostname }}
+      ansible.builtin.copy:
+        src: "{{ k3s_binary_local }}"
+        dest: "{{ k3s_install_dir }}/k3s"
+        mode: '0755'
+
+    - name: Create K3s directories on {{ inventory_hostname }}
+      ansible.builtin.file:
+        path: "{{ k3s_etc_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Unarchive airgap images to {{ inventory_hostname }}
+      ansible.builtin.unarchive:
+        src: "{{ k3s_src_dir }}/{{ k3s_airgap_zip }}"
+        dest: "/tmp/"
+      register: unarchive_result
+
+    - name: Find image tar in tmp
+      ansible.builtin.find:
+        paths: "{{ unarchive_result.dest }}"
+        patterns: "{{ k3s_airgap_tar_name }}"
+        file_type: file
+      register: image_tar
+
+    - name: Set the image_path variable dynamically
+      ansible.builtin.set_fact:
+        image_path: "{{ image_tar.files[0].path }}"
+      when: image_tar.files | length > 0
+
+    - name: Debug the image tar path
+      ansible.builtin.debug:
+        var: image_path
+
+    - name: Docker load the resulting tar image
+      community.docker.docker_image_load:
+        path: "{{ image_path }}"
+      register: load_result
+
+    - name: Log loaded airgap images
+      ansible.builtin.debug:
+        msg: "Docker load airgap images: {{ load_result.image_names | join(', ') }}"

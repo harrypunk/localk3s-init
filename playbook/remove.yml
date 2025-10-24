@@ -1,0 +1,29 @@
+---
+- name: Remove K3s on hosts
+  hosts: k3s_node
+  become: true
+  any_errors_fatal: true
+  vars:
+    rancher_var_dir: "/var/lib/rancher"
+    rancher_etc_dir: "/etc/rancher"
+    kubelet_var_dir: "/var/lib/kubelet"
+
+  tasks:
+    - name: Install K3s server on {{ inventory_hostname }}
+      ansible.builtin.systemd_service:
+        name: k3s
+        enabled: false
+        state: stopped
+
+    - name: Wait for few seconds
+      ansible.builtin.wait_for:
+        timeout: 8
+
+    - name: Remove k3s directories {{ inventory_hostname }}
+      ansible.builtin.file:
+        state: absent
+        path: "{{ item }}"
+      loop:
+        - "{{ rancher_etc_dir }}"
+        - "{{ rancher_var_dir }}"
+        - "{{ kubelet_var_dir }}"

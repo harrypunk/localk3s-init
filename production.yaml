@@ -1,0 +1,8 @@
+k3s_node:
+  hosts:
+    linux1.lan:
+      node_ip: "192.168.4.11"
+      node_name: "fedora1"
+    linux2.lan:
+      node_ip: "192.168.4.12"
+      node_name: "fedora2"

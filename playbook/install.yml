@@ -1,0 +1,50 @@
+---
+- name: Install K3s on air-gapped environment
+  hosts: k3s_node
+  become: true
+  any_errors_fatal: true
+  vars:
+    k3s_etc_dir: "/etc/rancher/k3s"
+    k3s_token: "lank3s1234"
+    k3s_db_url: "postgresql://user3:db12345@db.lan:5432/k3sdb"
+
+  tasks:
+    - name: Create k3s dir {{ inventory_hostname }}
+      ansible.builtin.file:
+        path: "{{ k3s_etc_dir }}"
+        state: directory
+        recurse: true
+        mode: '0755'
+
+    - name: Create K3s config file on {{ inventory_hostname }}
+      ansible.builtin.template:
+        src: k3s.config.yaml.j2
+        dest: "{{ k3s_etc_dir }}/config.yaml"
+        mode: '644'
+
+    - name: Create K3s service file on {{ inventory_hostname }}
+      ansible.builtin.template:
+        src: k3s.service.j2
+        dest: /etc/systemd/system/k3s.service
+        mode: '644'
+
+    - name: Reload systemd on {{ inventory_hostname }}
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Install K3s server on {{ inventory_hostname }}
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+    - name: Wait for K3s to be ready on {{ inventory_hostname }}
+      ansible.builtin.wait_for:
+        path: "{{ k3s_etc_dir }}/k3s.yaml"
+        timeout: 300
+
+    - name: Get Kubernetes config from {{ inventory_hostname }}
+      ansible.builtin.fetch:
+        src: "{{ k3s_etc_dir }}/k3s.yaml"
+        dest: /tmp/k3s.kubeconfig.yaml
+        flat: true

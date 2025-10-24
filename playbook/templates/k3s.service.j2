@@ -8,7 +8,7 @@ After=network-online.target
 WantedBy=multi-user.target
 
 [Service]
-Type=exec
+Type=notify
 EnvironmentFile=-/etc/default/%N
 EnvironmentFile=-/etc/sysconfig/%N
 KillMode=process
@@ -24,8 +24,4 @@ Restart=always
 RestartSec=5s
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart=/usr/local/bin/k3s \
-    agent \
-    --airgap \
-    --server https://{{ k3s_server_ip }}:6443 \
-    --token {{ k3s_token }}
+ExecStart=/usr/local/bin/k3s server

@@ -1,0 +1,12 @@
+write-kubeconfig-mode: "0644"
+tls-san:
+  - "k3s.lan"
+node-label:
+  - "text=dev"
+node-name: "{{ node_name }}"
+disable:
+  - traefik
+docker: true
+node-ip: "{{ node_ip }}"
+token: "{{ k3s_token }}"
+datastore-endpoint: "{{ k3s_db_url}}"
