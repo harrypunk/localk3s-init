@@ -1,0 +1,67 @@
+---
+- name: Deploy Daily Shutdown Systemd Timer
+  hosts: k3s_node
+  # Requires root privileges to write to /etc/systemd/system and manage systemd units
+  become: true
+  vars:
+    service_name: k3s-daily-shutdown
+    shutdown_time: "01:00:00"
+    unit_dir: /etc/systemd/system
+
+  tasks:
+    - name: Ensure shutdown utility path is known
+      # Standard Linux convention uses /sbin/shutdown. Checking path consistency for robustness.
+      stat:
+        path: /sbin/shutdown
+      register: shutdown_stat
+
+    - name: Fail if /sbin/shutdown is not found (unexpected for most Linux systems)
+      fail:
+        msg: "The '/sbin/shutdown' command was not found on the target node. Please verify the correct path for the shutdown utility."
+      when: not shutdown_stat.stat.exists
+
+    - name: 1. Create the systemd Service Unit (The action)
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Daily K3s Node Shutdown Service
+          After=network.target
+
+          [Service]
+          Type=oneshot
+          # Execute the shutdown command immediately
+          ExecStart=/sbin/shutdown
+          StandardOutput=journal
+        dest: "{{ unit_dir }}/{{ service_name }}.service"
+        mode: '0644'
+      notify: Reload systemd daemon
+
+    - name: 2. Create the systemd Timer Unit (The schedule)
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Daily K3s Node Shutdown Timer
+
+          [Timer]
+          # Schedule to run every day at the defined time (local time of the node)
+          OnCalendar=*-*-* {{ shutdown_time }}
+          # Ensures the timer is triggered if the system was down when it was supposed to run
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        dest: "{{ unit_dir }}/{{ service_name }}.timer"
+        mode: '0644'
+      notify: Reload systemd daemon
+
+    - name: 3. Enable and Start the Daily Shutdown Timer
+      ansible.builtin.systemd_service:
+        name: "{{ service_name }}.timer"
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      # This task must run after copying new unit files for systemd to recognize them
