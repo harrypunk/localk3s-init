@@ -45,8 +45,8 @@
           [Timer]
           # Schedule to run every day at the defined time (local time of the node)
           OnCalendar=*-*-* {{ shutdown_time }}
-          # Ensures the timer is NOT triggered if the system was down when it was supposed to run
-          Persistent=false
+          # Ensures the timer is triggered if the system was down when it was supposed to run
+          Persistent=true
 
           [Install]
           WantedBy=timers.target

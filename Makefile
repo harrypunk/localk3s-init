@@ -1,5 +1,6 @@
 .PHONY: ping \
 	syntax-check \
+	full-install
 
 ANSIBLE_OPTS ?= --ask-become-pass
 
@@ -19,3 +20,5 @@ syntax:
 
 %: playbook/%.yml
 	ansible-playbook $(ANSIBLE_OPTS) $< $(INVENTORIES)
+
+full-install: prepare registrylan install

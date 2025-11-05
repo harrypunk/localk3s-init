@@ -6,10 +6,11 @@
   vars:
     rancher_var_dir: "/var/lib/rancher"
     rancher_etc_dir: "/etc/rancher"
-    kubelet_var_dir: "/var/lib/kubelet"
+    # cannot rm, must reboot
+    # kubelet_var_dir: "/var/lib/kubelet"
 
   tasks:
-    - name: Install K3s server on {{ inventory_hostname }}
+    - name: Remove K3s server on {{ inventory_hostname }}
       ansible.builtin.systemd_service:
         name: k3s
         enabled: false
@@ -19,6 +20,54 @@
       ansible.builtin.wait_for:
         timeout: 8
 
+    - name: Find and Stop running containers named 'k8s_*'
+      ansible.builtin.shell: |
+        CONTAINERS=$(docker ps -aq --filter name=k8s_)
+        if [ -n "$CONTAINERS" ]; then
+          # Stop them first
+          docker stop $CONTAINERS
+          echo "Stopped containers: $CONTAINERS"
+        else
+          echo "No running k8s_* containers found to stop."
+        fi
+      register: stop_output
+      changed_when: "'Stopped containers' in stop_output.stdout"
+      ignore_errors: true # Ignore if 'docker stop' fails on already stopped containers
+
+    - name: Remove all containers named 'k8s_*'
+      ansible.builtin.shell: |
+        # Find all containers (now all stopped) with the 'k8s_' prefix
+        CONTAINERS=$(docker ps -aq --filter name=k8s_)
+        if [ -n "$CONTAINERS" ]; then
+          # Remove them, including associated volumes (-v)
+          docker rm -v $CONTAINERS
+          echo "Removed containers: $CONTAINERS"
+        else
+          echo "No k8s_* containers found to remove."
+        fi
+      register: remove_output
+      changed_when: "'Removed containers' in remove_output.stdout"
+      ignore_errors: true
+
+    - name: Prune unused Docker system resources (images, volumes, networks)
+      ansible.builtin.command: docker system prune -a -f
+      register: prune_output
+      # Mark as changed only if space was actually reclaimed
+      changed_when: "'Total reclaimed space' in prune_output.stdout"
+      ignore_errors: true
+
+    - name: Display cleanup summary
+      ansible.builtin.debug:
+        msg:
+          - "Stop Status: {{ stop_output.stdout | default('N/A') }}"
+          - "Remove Status: {{ remove_output.stdout | default('N/A') }}"
+          - "Prune Result: {{ prune_output.stdout | default('N/A') }}"
+      when: stop_output.changed or remove_output.changed or prune_output.changed or prune_output.rc == 0
+
+    - name: Wait for few seconds
+      ansible.builtin.wait_for:
+        timeout: 5
+
     - name: Remove k3s directories {{ inventory_hostname }}
       ansible.builtin.file:
         state: absent
@@ -26,4 +75,7 @@
       loop:
         - "{{ rancher_etc_dir }}"
         - "{{ rancher_var_dir }}"
-        - "{{ kubelet_var_dir }}"
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 60

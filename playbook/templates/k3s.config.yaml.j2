@@ -5,6 +5,7 @@ node-label:
   - "text=dev"
 node-name: "{{ node_name }}"
 disable:
+  - servicelb
   - traefik
 docker: true
 node-ip: "{{ node_ip }}"

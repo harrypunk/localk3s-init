@@ -1,0 +1,26 @@
+---
+- name: Prepare docker registry lan
+  hosts: k3s_node
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Create /etc/docker directory
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        mode: '0755'
+
+    - name: Create Docker daemon.json with insecure registries
+      ansible.builtin.template:
+        src: daemon.json.j2
+        dest: /etc/docker/daemon.json
+        mode: '0644'
+      notify: Restart docker
+
+  handlers:
+    - name: Restart docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+        enabled: true
