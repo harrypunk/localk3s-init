@@ -6,8 +6,7 @@
   vars:
     rancher_var_dir: "/var/lib/rancher"
     rancher_etc_dir: "/etc/rancher"
-    # cannot rm, must reboot
-    # kubelet_var_dir: "/var/lib/kubelet"
+    kubelet_var_dir: "/var/lib/kubelet"
 
   tasks:
     - name: Remove K3s server on {{ inventory_hostname }}
@@ -27,8 +26,6 @@
           # Stop them first
           docker stop $CONTAINERS
           echo "Stopped containers: $CONTAINERS"
-        else
-          echo "No running k8s_* containers found to stop."
         fi
       register: stop_output
       changed_when: "'Stopped containers' in stop_output.stdout"
@@ -42,8 +39,6 @@
           # Remove them, including associated volumes (-v)
           docker rm -v $CONTAINERS
           echo "Removed containers: $CONTAINERS"
-        else
-          echo "No k8s_* containers found to remove."
         fi
       register: remove_output
       changed_when: "'Removed containers' in remove_output.stdout"
@@ -79,3 +74,8 @@
     - name: Reboot
       ansible.builtin.reboot:
         reboot_timeout: 60
+
+    - name: Remove kubelet directories
+      ansible.builtin.file:
+        state: absent
+        path: "{{ kubelet_var_dir }}"

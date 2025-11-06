@@ -1,2 +1,8 @@
 registry_lan: registry.lan:9002
 k3s_vip_address: "192.168.4.100"
+k3s_db_tag: "251109"
+k3s_db_name: "k3s_db"
+k3s_postgres_db: "k3sdb"
+k3s_postgres_user: "user3"
+k3s_postgres_password: "localk3s12345"
+k3s_db_url: "postgresql://{{ k3s_postgres_user }}:{{ k3s_postgres_password }}@db.lan:5432/{{ k3s_postgres_db }}"

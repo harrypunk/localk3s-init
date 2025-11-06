@@ -1,0 +1,87 @@
+---
+- name: Reset K3s database
+  hosts: db_node
+  become: true
+  any_errors_fatal: true
+  vars:
+    db_image: "postgres:18-alpine"
+    db_name: "{{ k3s_db_name }}_{{ k3s_db_tag }}"
+
+  tasks:
+    - name: Stop K3s service
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: stopped
+
+    - name: Find all db containers
+      ansible.builtin.command: >
+        docker ps -a --filter "name={{ k3s_db_name }}"
+        {% raw %}
+        --format "{{.Names}}"
+        {% endraw %}
+      register: old_db_containers_result
+      changed_when: "old_db_containers_result.stdout_lines | length > 0"
+
+    - name: Set vars of db containers
+      ansible.builtin.set_fact:
+        old_db_containers: "{{ old_db_containers_result.stdout_lines }}"
+
+    - name: Log found containers
+      ansible.builtin.debug:
+        var: old_db_containers
+
+    - name: Stop db containers
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: stopped
+      loop: "{{ old_db_containers }}"
+      when: old_db_containers | length > 0
+
+    - name: Remove db containers
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ old_db_containers }}"
+      when: old_db_containers | length > 0
+
+    - name: Find all db volume
+      ansible.builtin.command: >
+        docker volume ls --filter "name={{ k3s_db_name }}"
+        {% raw %}
+        --format "{{.Name}}"
+        {% endraw %}
+      register: vol_result
+      changed_when: "vol_result.stdout_lines | length > 0"
+
+    - name: Set vars of db volume
+      ansible.builtin.set_fact:
+        old_db_volumes: "{{ vol_result.stdout_lines }}"
+
+    - name: Log found volumes
+      ansible.builtin.debug:
+        var: old_db_volumes
+
+    - name: Remove db volumes
+      community.docker.docker_volume:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ old_db_volumes }}"
+      when: old_db_volumes | length > 0
+
+    - name: Create db volume
+      community.docker.docker_volume:
+        name: "{{ db_name }}"
+
+    - name: Create db container
+      community.docker.docker_container:
+        name: "{{ db_name }}"
+        image: "{{ db_image }}"
+        detach: true
+        env:
+          POSTGRES_PASSWORD: "{{ k3s_postgres_password }}"
+          POSTGRES_USER: "{{ k3s_postgres_user }}"
+          POSTGRES_DB: "{{ k3s_postgres_db }}"
+        ports:
+          - "5432:5432"
+        volumes:
+          - "{{ db_name }}:/var/lib/postgresql/data"

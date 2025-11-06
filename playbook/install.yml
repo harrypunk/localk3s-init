@@ -6,7 +6,6 @@
   vars:
     k3s_etc_dir: "/etc/rancher/k3s"
     k3s_token: "lank3s1234"
-    k3s_db_url: "postgresql://user3:db12345@db.lan:5432/k3sdb"
 
   tasks:
     - name: Create k3s dir {{ inventory_hostname }}
