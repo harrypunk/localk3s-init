@@ -77,6 +77,7 @@
         name: "{{ db_name }}"
         image: "{{ db_image }}"
         detach: true
+        restart_policy: unless-stopped
         env:
           POSTGRES_PASSWORD: "{{ k3s_postgres_password }}"
           POSTGRES_USER: "{{ k3s_postgres_user }}"
