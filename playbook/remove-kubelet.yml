@@ -1,0 +1,13 @@
+---
+- name: Remove kubelet directories on hosts
+  hosts: k3s_node
+  become: true
+  any_errors_fatal: true
+  vars:
+    kubelet_var_dir: "/var/lib/kubelet"
+
+  tasks:
+    - name: Remove kubelet directories
+      ansible.builtin.file:
+        state: absent
+        path: "{{ kubelet_var_dir }}"

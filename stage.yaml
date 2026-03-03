@@ -1,11 +1,10 @@
 k3s_node:
   hosts:
     linux3.lan:
-      node_ip: "192.168.4.3"
+      node_ip: "192.168.249.1"
       node_name: "center"
+      flannel_iface: "br-lan"
 
 db_node:
   hosts:
-    linux3.lan:
-      node_ip: "192.168.4.3"
-      node_name: "center"
+    k3sdb.lan: {}

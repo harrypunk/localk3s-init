@@ -6,7 +6,6 @@
   vars:
     rancher_var_dir: "/var/lib/rancher"
     rancher_etc_dir: "/etc/rancher"
-    kubelet_var_dir: "/var/lib/kubelet"
 
   tasks:
     - name: Remove K3s server on {{ inventory_hostname }}
@@ -73,9 +72,4 @@
 
     - name: Reboot
       ansible.builtin.reboot:
-        reboot_timeout: 60
-
-    - name: Remove kubelet directories
-      ansible.builtin.file:
-        state: absent
-        path: "{{ kubelet_var_dir }}"
+        reboot_timeout: 120

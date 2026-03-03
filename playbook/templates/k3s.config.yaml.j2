@@ -9,5 +9,10 @@ disable:
   - traefik
 docker: true
 node-ip: "{{ node_ip }}"
+node-external-ip: "{{ node_ip }}"
+flannel-external-ip: true
+{% if flannel_iface is defined and flannel_iface %}
+flannel-iface: "{{ flannel_iface }}"
+{% endif %}
 token: "{{ k3s_token }}"
 datastore-endpoint: "{{ k3s_db_url}}"
