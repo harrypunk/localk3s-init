@@ -1,6 +1,7 @@
 .PHONY: ping \
 	syntax-check \
-	full-install
+	full-install \
+	db
 
 ANSIBLE_OPTS ?= --ask-become-pass
 
@@ -22,3 +23,6 @@ syntax:
 	ansible-playbook $(ANSIBLE_OPTS) $< $(INVENTORIES)
 
 full-install: prepare registrylan install
+
+db: playbook/reset-k3sdb.yml
+	ansible-playbook $(ANSIBLE_OPTS) $< -i db.yaml

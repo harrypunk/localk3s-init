@@ -1,0 +1,3 @@
+db_node:
+  hosts:
+    k3sdb.lan: {}
